@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "894750654398",
+    "project_id": "fleet-management-hackathon",
+    "storage_bucket": "fleet-management-hackathon.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894750654398:android:0c272053070d830536c3ef",
+        "android_client_info": {
+          "package_name": "com.example.fleet_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAxXhyOQfCbF3X4ngr0K22zFTdz4Lr8YjU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894750654398:android:41c7560fb0989c4f36c3ef",
+        "android_client_info": {
+          "package_name": "com.hackathon.fleetmanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAxXhyOQfCbF3X4ngr0K22zFTdz4Lr8YjU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
