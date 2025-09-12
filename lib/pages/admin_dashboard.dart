@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import './vehicle.dart';
 import './dashboard_page.dart';
 import './trips.dart';

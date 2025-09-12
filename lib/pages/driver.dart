@@ -1,12 +1,99 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// duplicate import removed
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/drive_tracking.dart';
+import 'driver_profile.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class DriverTripsPage extends StatelessWidget {
+class DriverTripsPage extends StatefulWidget {
   final String driverId; // Pass this from login/session
 
   const DriverTripsPage({super.key, required this.driverId});
+
+  @override
+  State<DriverTripsPage> createState() => _DriverTripsPageState();
+}
+
+class _DriverTripsPageState extends State<DriverTripsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _listenForAssignments();
+  }
+
+  void _listenForAssignments() {
+    FirebaseFirestore.instance
+        .collection('user_notifications')
+        .doc(widget.driverId)
+        .collection('items')
+        .where('status', isEqualTo: 'new')
+        .where('type', isEqualTo: 'trip_assignment')
+        .snapshots()
+        .listen((snapshot) {
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final tripId = data['data']?['tripId'];
+            final start = data['data']?['start'];
+            final end = data['data']?['end'];
+            if (tripId != null) {
+              _showAssignmentDialog(doc.id, tripId, start, end);
+            }
+          }
+        });
+  }
+
+  Future<void> _showAssignmentDialog(
+    String notifId,
+    String tripId,
+    String? start,
+    String? end,
+  ) async {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('New Trip Assignment'),
+          content: Text('Route: ${start ?? ''} → ${end ?? ''}'),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                // decline: mark notification handled
+                await FirebaseFirestore.instance
+                    .collection('user_notifications')
+                    .doc(widget.driverId)
+                    .collection('items')
+                    .doc(notifId)
+                    .set({'status': 'dismissed'}, SetOptions(merge: true));
+                if (mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Decline'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // accept: mark status and set acceptedAt
+                await FirebaseFirestore.instance
+                    .collection('trips')
+                    .doc(tripId)
+                    .set({
+                      'accepted': true,
+                      'acceptedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true));
+                await FirebaseFirestore.instance
+                    .collection('user_notifications')
+                    .doc(widget.driverId)
+                    .collection('items')
+                    .doc(notifId)
+                    .set({'status': 'handled'}, SetOptions(merge: true));
+                if (mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Accept'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +144,17 @@ class DriverTripsPage extends StatelessWidget {
                           ),
                         ),
                       IconButton(
+                        icon: const Icon(Icons.person, color: Colors.black54),
+                        tooltip: 'Profile',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DriverProfilePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.logout, color: Colors.black54),
                         tooltip: "Logout",
                         onPressed: () async {
@@ -75,7 +173,7 @@ class DriverTripsPage extends StatelessWidget {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('trips')
-                    .where('driverId', isEqualTo: driverId)
+                    .where('driverId', isEqualTo: widget.driverId)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
@@ -86,28 +184,26 @@ class DriverTripsPage extends StatelessWidget {
 
                   if (trips.isEmpty) {
                     return const Center(
-                        child: Text(
-                      "No trips assigned yet.",
-                      style: TextStyle(fontSize: 16, color: Colors.black38),
-                    ));
+                      child: Text(
+                        "No trips assigned yet.",
+                        style: TextStyle(fontSize: 16, color: Colors.black38),
+                      ),
+                    );
                   }
 
                   return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     itemCount: trips.length,
                     itemBuilder: (context, index) {
                       final trip = trips[index];
                       final data = trip.data() as Map<String, dynamic>;
 
-                      Color statusColor;
-                      if (data['status'] == "Scheduled") {
-                        statusColor = Colors.grey.shade400;
-                      } else if (data['status'] == "Ongoing") {
-                        statusColor = Colors.orange.shade400;
-                      } else {
-                        statusColor = Colors.green.shade400;
-                      }
+                      // statusColor removed; using activityColor instead.
 
+                      final activityColor = _computeActivityColor(data);
                       return Card(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -121,7 +217,8 @@ class DriverTripsPage extends StatelessWidget {
                             children: [
                               // Route & Status
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Flexible(
                                     child: Text(
@@ -135,16 +232,19 @@ class DriverTripsPage extends StatelessWidget {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.2),
+                                      color: activityColor.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      data['status'] ?? "Scheduled",
+                                      _activityLabel(data),
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
-                                        color: statusColor.darken(0.2),
+                                        color: activityColor.darken(0.2),
                                       ),
                                     ),
                                   ),
@@ -171,13 +271,20 @@ class DriverTripsPage extends StatelessWidget {
                                             .collection('trips')
                                             .doc(trip.id)
                                             .update({
-                                          "status": "Ongoing",
-                                          "startedAt": FieldValue.serverTimestamp(),
-                                        });
-                                        DriverTrackingService(trip.id).startTracking();
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                              "status": "Ongoing",
+                                              "startedAt":
+                                                  FieldValue.serverTimestamp(),
+                                            });
+                                        DriverTrackingService(
+                                          trip.id,
+                                        ).startTracking();
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           const SnackBar(
-                                            content: Text("Trip Started & Live Tracking Enabled"),
+                                            content: Text(
+                                              "Trip Started & Live Tracking Enabled",
+                                            ),
                                           ),
                                         );
                                       },
@@ -187,7 +294,11 @@ class DriverTripsPage extends StatelessWidget {
                                       label: "End Trip",
                                       color: Colors.redAccent,
                                       onTap: () {
-                                        _showEndTripDialog(context, trip.id, data);
+                                        _showEndTripDialog(
+                                          context,
+                                          trip.id,
+                                          data,
+                                        );
                                       },
                                     ),
                                   ],
@@ -198,7 +309,9 @@ class DriverTripsPage extends StatelessWidget {
                               if (data['status'] == "Completed") ...[
                                 const SizedBox(height: 12),
                                 Text("Fuel Cost: ₹${data['fuelCost'] ?? 0}"),
-                                Text("Service Cost: ₹${data['serviceCost'] ?? 0}"),
+                                Text(
+                                  "Service Cost: ₹${data['serviceCost'] ?? 0}",
+                                ),
                                 Text("Toll Cost: ₹${data['tollCost'] ?? 0}"),
                                 Text("Total Cost: ₹${data['totalCost'] ?? 0}"),
                               ],
@@ -217,14 +330,20 @@ class DriverTripsPage extends StatelessWidget {
     );
   }
 
-  Widget _customButton({required String label, required Color color, required VoidCallback onTap}) {
+  Widget _customButton({
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.only(right: 10, bottom: 8),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         onPressed: onTap,
         child: Text(label, style: const TextStyle(color: Colors.white)),
@@ -232,7 +351,11 @@ class DriverTripsPage extends StatelessWidget {
     );
   }
 
-  void _showEndTripDialog(BuildContext context, String tripId, Map<String, dynamic> tripData) {
+  void _showEndTripDialog(
+    BuildContext context,
+    String tripId,
+    Map<String, dynamic> tripData,
+  ) {
     final fuelController = TextEditingController();
     final serviceController = TextEditingController();
 
@@ -240,7 +363,9 @@ class DriverTripsPage extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text("Complete Trip"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -252,7 +377,9 @@ class DriverTripsPage extends StatelessWidget {
               ),
               TextField(
                 controller: serviceController,
-                decoration: const InputDecoration(labelText: "Service Cost (₹)"),
+                decoration: const InputDecoration(
+                  labelText: "Service Cost (₹)",
+                ),
                 keyboardType: TextInputType.number,
               ),
             ],
@@ -266,22 +393,28 @@ class DriverTripsPage extends StatelessWidget {
               child: const Text("Submit"),
               onPressed: () async {
                 final fuelCost = double.tryParse(fuelController.text) ?? 0.0;
-                final serviceCost = double.tryParse(serviceController.text) ?? 0.0;
+                final serviceCost =
+                    double.tryParse(serviceController.text) ?? 0.0;
                 final tollCost = (tripData['tollCost'] ?? 0).toDouble();
                 final totalCost = fuelCost + serviceCost + tollCost;
 
-                await FirebaseFirestore.instance.collection('trips').doc(tripId).update({
-                  "status": "Completed",
-                  "completedAt": FieldValue.serverTimestamp(),
-                  "fuelCost": fuelCost,
-                  "serviceCost": serviceCost,
-                  "totalCost": totalCost,
-                });
+                await FirebaseFirestore.instance
+                    .collection('trips')
+                    .doc(tripId)
+                    .update({
+                      "status": "Completed",
+                      "completedAt": FieldValue.serverTimestamp(),
+                      "fuelCost": fuelCost,
+                      "serviceCost": serviceCost,
+                      "totalCost": totalCost,
+                    });
 
                 Navigator.pop(context);
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Trip Completed! Total Cost: ₹$totalCost")),
+                  SnackBar(
+                    content: Text("Trip Completed! Total Cost: ₹$totalCost"),
+                  ),
                 );
               },
             ),
@@ -299,5 +432,32 @@ extension ColorBrightness on Color {
     final hsl = HSLColor.fromColor(this);
     final hslDark = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
     return hslDark.toColor();
+  }
+}
+
+extension _Activity on _DriverTripsPageState {
+  Color _computeActivityColor(Map<String, dynamic> data) {
+    final status = (data['status'] ?? 'Scheduled') as String;
+    if (status == 'Completed') return Colors.blue;
+    if (status == 'Ongoing') {
+      final updatedAt = (data['currentLocation']?['updatedAt']);
+      final ts = updatedAt is Timestamp ? updatedAt.toDate() : DateTime.now();
+      final minutesSince = DateTime.now().difference(ts).inMinutes;
+      // Yellow if no location update for > expected threshold (10 min), else Green
+      return minutesSince > 10 ? Colors.yellow.shade700 : Colors.green.shade600;
+    }
+    return Colors.green.shade600; // Scheduled treated as green (on schedule)
+  }
+
+  String _activityLabel(Map<String, dynamic> data) {
+    final status = (data['status'] ?? 'Scheduled') as String;
+    if (status == 'Completed') return 'Completed';
+    if (status == 'Ongoing') {
+      final updatedAt = (data['currentLocation']?['updatedAt']);
+      final ts = updatedAt is Timestamp ? updatedAt.toDate() : DateTime.now();
+      final minutesSince = DateTime.now().difference(ts).inMinutes;
+      return minutesSince > 10 ? 'Idle/Resting' : 'On Schedule';
+    }
+    return 'Scheduled';
   }
 }

@@ -12,6 +12,8 @@ class _AuthScreenState extends State {
   final AuthService _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool isLogin = true;
   String message = "";
 
@@ -46,12 +48,34 @@ class _AuthScreenState extends State {
                       isLogin
                           ? "Login with your email & password"
                           : "Register with your details",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 24),
+                    if (!isLogin) ...[
+                      TextField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: "Full Name",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.person_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: "Phone",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.phone_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     TextField(
                       controller: _emailController,
                       decoration: InputDecoration(
@@ -97,9 +121,20 @@ class _AuthScreenState extends State {
                               }
                             }
                           } else {
+                            if (_nameController.text.trim().isEmpty ||
+                                _phoneController.text.trim().isEmpty) {
+                              if (mounted) {
+                                setState(
+                                  () => message = "Please enter name & phone",
+                                );
+                              }
+                              return;
+                            }
                             var user = await _authService.registerWithEmail(
                               _emailController.text.trim(),
                               _passwordController.text.trim(),
+                              name: _nameController.text.trim(),
+                              phone: _phoneController.text.trim(),
                             );
                             if (user == null) {
                               if (mounted) {
@@ -119,8 +154,7 @@ class _AuthScreenState extends State {
                     ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: () =>
-                          setState(() => isLogin = !isLogin),
+                      onPressed: () => setState(() => isLogin = !isLogin),
                       child: Text(
                         isLogin
                             ? "Don't have an account? Register"
