@@ -1,22 +1,10 @@
 import 'package:flutter/material.dart';
 
 import './vehicle.dart';
+import './dashboard_page.dart';
 import './trips.dart';
 
-// ✅ Placeholder pages for Dashboard & Analytics
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        "Dashboard Page",
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
 
 class AnalyticsPage extends StatelessWidget {
   const AnalyticsPage({super.key});
@@ -51,11 +39,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       body: _pages[_selectedIndex],
 
-    
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {

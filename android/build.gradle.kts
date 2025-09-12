@@ -1,7 +1,7 @@
 plugins {
-    id("com.google.gms.google-services") version "4.4.3" apply false
+    // Only declare the version here
+    id("com.google.gms.google-services") apply false
 }
-
 
 allprojects {
     repositories {

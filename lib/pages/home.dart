@@ -8,7 +8,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AuthService _authService = AuthService();
+    final AuthService authService = AuthService();
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email ?? "Unknown User";
 
@@ -30,7 +30,7 @@ class HomeScreen extends StatelessWidget {
                 icon: const Icon(Icons.logout),
                 tooltip: "Logout",
                 onPressed: () async {
-                  await _authService.logout();
+                  await authService.logout();
                   if (context.mounted) {
                     Navigator.pushReplacementNamed(context, "/login");
                   }

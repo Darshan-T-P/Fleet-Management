@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:fleet_management/pages/LiveTracking.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,15 +8,65 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:universal_html/html.dart' as html;
 
-import '../../services/create_trip_page.dart'; // make sure path is correct
+import '../../services/create_trip_page.dart';
 
 class TripsPage extends StatelessWidget {
   const TripsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    void showExpenseDialog(BuildContext context, Map<String, dynamic> data) {
+      final fuel = data['fuelCost'] ?? 0;
+      final service = data['serviceCost'] ?? 0;
+      final toll = data['tollCost'] ?? 0;
+      final total = data['totalCost'] ?? (fuel + service + toll);
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              "Trip Expenses",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Fuel Cost: ₹$fuel"),
+                Text("Service Cost: ₹$service"),
+                Text("Toll Cost: ₹$toll"),
+                const Divider(),
+                Text(
+                  "Total Cost: ₹$total",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                child: const Text("Close"),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Trip Management")),
+      backgroundColor: const Color(0xfff8f9fa),
+      appBar: AppBar(
+        backgroundColor: Colors.blue[700],
+        title: const Text("Trip Management"),
+        elevation: 2,
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('trips').snapshots(),
         builder: (context, snapshot) {
@@ -25,23 +76,50 @@ class TripsPage extends StatelessWidget {
 
           final trips = snapshot.data!.docs;
 
+          if (trips.isEmpty) {
+            return const Center(
+              child: Text(
+                "No trips available",
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            );
+          }
+
           return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
             scrollDirection: Axis.horizontal,
             child: SingleChildScrollView(
               child: DataTable(
+                headingRowColor: WidgetStateProperty.all(Colors.blue[50]),
+                border: TableBorder.all(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 columns: const [
-                  DataColumn(label: Text("Trip ID")),
-                  DataColumn(label: Text("Route")),
-                  DataColumn(label: Text("Driver")),
-                  DataColumn(label: Text("Vehicle")),
-                  DataColumn(label: Text("Status")),
-                  DataColumn(label: Text("Expenses")),
+                  DataColumn(
+                      label: Text("Trip ID",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text("Route",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text("Driver",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text("Vehicle",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text("Status",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(
+                      label: Text("Actions",
+                          style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
                 rows: trips.asMap().entries.map((entry) {
                   final index = entry.key;
                   final trip = entry.value;
                   final data = trip.data() as Map<String, dynamic>;
-              
+
                   return DataRow(
                     cells: [
                       DataCell(Text("${index + 1}")),
@@ -52,20 +130,66 @@ class TripsPage extends StatelessWidget {
                           "${data['vehicleCode'] ?? ''} - ${data['vehicleNumber'] ?? 'Unassigned'}",
                         ),
                       ),
-                      DataCell(Text(data['status'] ?? "Scheduled")),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: data['status'] == "Ongoing"
+                                ? Colors.green[100]
+                                : Colors.orange[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            data['status'] ?? "Scheduled",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: data['status'] == "Ongoing"
+                                  ? Colors.green[700]
+                                  : Colors.orange[700],
+                            ),
+                          ),
+                        ),
+                      ),
                       DataCell(
                         Row(
                           children: [
+                            if (data['status'] == "Ongoing")
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green[600],
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          LiveTrackingPage(tripId: trip.id),
+                                    ),
+                                  );
+                                },
+                                child: const Text(
+                                  "Track",
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
                             IconButton(
+                              tooltip: "View Expenses",
                               icon: const Icon(
-                                Icons.remove_red_eye,
+                                Icons.receipt_long,
                                 color: Colors.blue,
                               ),
                               onPressed: () {
-                                _showExpenseDialog(context, data);
+                                showExpenseDialog(context, data);
                               },
                             ),
                             IconButton(
+                              tooltip: "Export PDF",
                               icon: const Icon(
                                 Icons.picture_as_pdf,
                                 color: Colors.red,
@@ -89,53 +213,17 @@ class TripsPage extends StatelessWidget {
           );
         },
       ),
-
-      /// 👇 Floating Action Button to create a new trip
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.blue[700],
+        icon: const Icon(Icons.add),
+        label: const Text("New Trip"),
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => CreateTripPage()),
           );
         },
-        child: const Icon(Icons.add),
       ),
-    );
-  }
-
-  void _showExpenseDialog(BuildContext context, Map<String, dynamic> data) {
-    final fuel = data['fuelCost'] ?? 0;
-    final service = data['serviceCost'] ?? 0;
-    final toll = data['tollCost'] ?? 0;
-    final total = data['totalCost'] ?? (fuel + service + toll);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Trip Expenses"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Fuel Cost: ₹$fuel"),
-              Text("Service Cost: ₹$service"),
-              Text("Toll Cost: ₹$toll"),
-              const Divider(),
-              Text(
-                "Total Cost: ₹$total",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Close"),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -166,26 +254,18 @@ class TripsPage extends StatelessWidget {
                   ),
                 ),
                 pw.SizedBox(height: 20),
-
-                // Trip details
                 pw.Text("Driver Name: ${data['driverName'] ?? 'N/A'}"),
                 pw.Text("Vehicle Type: ${data['vehicleType'] ?? 'N/A'}"),
                 pw.Text("Vehicle No: ${data['vehicleNumber'] ?? 'N/A'}"),
-                pw.Text(
-                  "Vehicle Code: ${data['vehicleCode'] ?? 'N/A'}",
-                ), // ✅ Added
+                pw.Text("Vehicle Code: ${data['vehicleCode'] ?? 'N/A'}"),
                 pw.Text("Route: ${data['start']} → ${data['end']}"),
-
                 pw.SizedBox(height: 20),
-
-                // Expense Table
                 pw.Table(
                   border: pw.TableBorder.all(),
                   children: [
                     pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey300,
-                      ),
+                      decoration:
+                          const pw.BoxDecoration(color: PdfColors.grey300),
                       children: [
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
@@ -234,9 +314,8 @@ class TripsPage extends StatelessWidget {
                       ],
                     ),
                     pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey200,
-                      ),
+                      decoration:
+                          const pw.BoxDecoration(color: PdfColors.grey200),
                       children: [
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
@@ -290,17 +369,12 @@ class TripsPage extends StatelessWidget {
                   ),
                 ),
                 pw.SizedBox(height: 20),
-
                 pw.Text("Driver Name: ${data['driverName'] ?? 'N/A'}"),
                 pw.Text("Vehicle Type: ${data['vehicleType'] ?? 'N/A'}"),
                 pw.Text("Vehicle No: ${data['vehicleNumber'] ?? 'N/A'}"),
-                pw.Text(
-                  "Vehicle Code: ${data['vehicleCode'] ?? 'N/A'}",
-                ), // ✅ Added
+                pw.Text("Vehicle Code: ${data['vehicleCode'] ?? 'N/A'}"),
                 pw.Text("Route: ${data['start']} → ${data['end']}"),
-
                 pw.SizedBox(height: 20),
-
                 pw.Table(
                   border: pw.TableBorder.all(),
                   children: [

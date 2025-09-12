@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AuthService _authService = AuthService();
+    final AuthService authService = AuthService();
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
 
           final user = snapshot.data!;
           return FutureBuilder<String?>(
-            future: _authService.getUserRole(user.uid),
+            future: authService.getUserRole(user.uid),
             builder: (context, roleSnap) {
               if (!roleSnap.hasData) {
                 return const Scaffold(body: Center(child: CircularProgressIndicator()));
