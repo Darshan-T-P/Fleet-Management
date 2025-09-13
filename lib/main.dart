@@ -5,14 +5,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'services/auth_service.dart';
 import 'pages/auth_screen.dart';
 import 'pages/home.dart';     // manager/admin dashboard
-import 'pages/driver.dart'; // driver dashboard
+import 'pages/driver_dashboard.dart'; // driver dashboard
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
   runApp(const MyApp());
 }
 
@@ -39,9 +38,9 @@ class MyApp extends StatelessWidget {
               }
 
               if (roleSnap.data == "manager") {
-                return const HomeScreen(); // manager/admin dashboard
+                return  HomeScreen(); // manager/admin dashboard
               } else {
-                return DriverTripsPage(driverId: user.uid); // driver dashboard
+                return DriverDashboard(driverId: user.uid); // driver dashboard
               }
             },
           );

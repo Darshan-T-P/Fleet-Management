@@ -60,39 +60,8 @@ class DashboardPage extends StatelessWidget {
                     color: Colors.purpleAccent,
                   ),
                 ],
-              ),
-              const SizedBox(height: 24),
-
-              // Action buttons
-              // Row(
-              //   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              //   children: [
-              //     _actionButton(
-              //       label: "Create Trip",
-              //       icon: Icons.add,
-              //       color: Colors.blueAccent,
-              //       onTap: () {
-              //         Navigator.pushNamed(context, '/createTrip');
-              //       },
-              //     ),
-              //     _actionButton(
-              //       label: "View Trips",
-              //       icon: Icons.list_alt,
-              //       color: Colors.orangeAccent,
-              //       onTap: () {
-              //         Navigator.pushNamed(context, '/trips');
-              //       },
-              //     ),
-              //     _actionButton(
-              //       label: "Vehicles",
-              //       icon: Icons.directions_bus,
-              //       color: Colors.green,
-              //       onTap: () {
-              //         Navigator.pushNamed(context, '/vehicles');
-              //       },
-              //     ),
-              //   ],
-              // ),
+              ),           
+             
 
               const SizedBox(height: 24),
 

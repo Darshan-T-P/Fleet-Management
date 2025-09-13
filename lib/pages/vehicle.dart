@@ -1,179 +1,101 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/notification_service.dart';
-import '../services/route_service.dart';
+import 'package:fleet_management/widgets/vehicelDetailPage.dart';
+import 'package:fleet_management/widgets/add_vehicle.dart';
+import 'package:fleet_management/pages/allservicespage.dart';
 
-class VehiclesPage extends StatelessWidget {
-  const VehiclesPage({super.key});
+class VehicleListPage extends StatelessWidget {
+  const VehicleListPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Vehicles")),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection("vehicles").snapshots(),
+      appBar: AppBar(title: const Text("Vehicles"),
+      actions: [
+        IconButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AllServicesPage()),
+            );
+          },
+          icon: const Icon(Icons.list),
+        ),
+      ],),
+      
+      body: StreamBuilder(
+        stream: FirebaseFirestore.instance
+            .collection('vehicles')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          var docs = snapshot.data!.docs;
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) {
+            return const Center(child: Text("No vehicles yet"));
+          }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
             itemCount: docs.length,
             itemBuilder: (context, index) {
-              var data = docs[index].data() as Map<String, dynamic>;
+              final data = docs[index].data() as Map<String, dynamic>;
+
+              String status = data['status'] ?? "Unknown";
+              String nextService = data['nextServiceDue'] ?? "N/A";
+
+              Color statusColor;
+              switch (status) {
+                case "Available":
+                  statusColor = Colors.green;
+                  break;
+                case "In Trip":
+                  statusColor = Colors.orange;
+                  break;
+                case "In Service":
+                  statusColor = Colors.red;
+                  break;
+                default:
+                  statusColor = Colors.grey;
+              }
+
               return Card(
+                margin: const EdgeInsets.all(8),
                 child: ListTile(
-                  title: Text(data['numberPlate'] ?? ""),
-                  subtitle: Text("${data['driver']} • ${data['type']}"),
-                  trailing: Text(
-                    data['status'] ?? "",
-                    style: TextStyle(
-                      color: data['status'] == "Active"
-                          ? Colors.green
-                          : Colors.orange,
-                    ),
+                  title: Text("${data['vehicleType']} - ${data['numberPlate']}"),
+                  subtitle: Text(
+                    "Status: $status | Next Service: $nextService",
                   ),
+                  trailing: Icon(Icons.circle, color: statusColor, size: 14),
                   onTap: () {
-                    _openAssignDialog(context, docs[index].id, data);
-                  },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => VehicleDetailPage(
+        vehicleId: docs[index].id, // ✅ Always present
+      ),
+    ),
+  );
+},
+
                 ),
               );
             },
           );
         },
       ),
-    );
-  }
 
-  void _openAssignDialog(
-    BuildContext context,
-    String vehicleId,
-    Map<String, dynamic> vehicle,
-  ) {
-    final startCtrl = TextEditingController();
-    final endCtrl = TextEditingController();
-    String? selectedDriverId;
-    String? selectedDriverEmail;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Assign Trip'),
-          content: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: startCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Start Location',
-                  ),
-                ),
-                TextField(
-                  controller: endCtrl,
-                  decoration: const InputDecoration(labelText: 'End Location'),
-                ),
-                const SizedBox(height: 12),
-                const Text('Select Driver'),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .where('role', isEqualTo: 'driver')
-                      .snapshots(),
-                  builder: (context, snap) {
-                    if (!snap.hasData)
-                      return const SizedBox(
-                        height: 48,
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    final drivers = snap.data!.docs;
-                    return DropdownButton<String>(
-                      isExpanded: true,
-                      value: selectedDriverId,
-                      hint: const Text('Choose driver'),
-                      items: drivers.map((d) {
-                        final email =
-                            (d.data() as Map<String, dynamic>)['email'] ?? '';
-                        return DropdownMenuItem<String>(
-                          value: d.id,
-                          child: Text(email),
-                          onTap: () {
-                            selectedDriverEmail = email;
-                          },
-                        );
-                      }).toList(),
-                      onChanged: (v) {
-                        selectedDriverId = v;
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (startCtrl.text.isEmpty ||
-                    endCtrl.text.isEmpty ||
-                    selectedDriverId == null)
-                  return;
-
-                // naive coords for estimation; replace with geocoding in production
-                final route = RouteService().estimate(
-                  startLat: 12.9,
-                  startLng: 77.6,
-                  endLat: 13.0,
-                  endLng: 77.7,
-                );
-
-                final tripRef = await FirebaseFirestore.instance
-                    .collection('trips')
-                    .add({
-                      'start': startCtrl.text,
-                      'end': endCtrl.text,
-                      'driverId': selectedDriverId,
-                      'driverName': selectedDriverEmail ?? 'Driver',
-                      'vehicleId': vehicleId,
-                      'vehicleNumber': vehicle['numberPlate'] ?? 'Unassigned',
-                      'vehicleType': vehicle['type'] ?? 'NA',
-                      'vehicleCode': vehicle['vehicleCode'] ?? 'NA',
-                      'status': 'Scheduled',
-                      'createdAt': FieldValue.serverTimestamp(),
-                      'expectedDurationMin': route.durationMin,
-                      'expectedDistanceKm': route.distanceKm,
-                      'expectedFuelLiters': route.estimatedFuelLiters,
-                      'activity': 'green',
-                    });
-
-                // notify driver via in-app notification doc
-                await NotificationService().sendInAppNotification(
-                  userId: selectedDriverId!,
-                  type: 'trip_assignment',
-                  data: {
-                    'tripId': tripRef.id,
-                    'start': startCtrl.text,
-                    'end': endCtrl.text,
-                  },
-                );
-
-                if (context.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Assign'),
-            ),
-          ],
-        );
-      },
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AddVehiclePage()),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
+

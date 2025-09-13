@@ -41,6 +41,100 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
           }
         });
   }
+  void _showReassignDialog(
+  BuildContext context,
+  String tripId,
+  Map<String, dynamic> tripData,
+) {
+  String? selectedDriverId;
+  String? selectedDriverName;
+
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text("Reassign Trip"),
+        content: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .where('role', isEqualTo: 'driver')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final drivers = snapshot.data!.docs;
+
+            return DropdownButtonFormField<String>(
+              value: selectedDriverId,
+              hint: const Text("Select New Driver"),
+              items: drivers.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final name = data['email'] ?? "Unknown";
+                return DropdownMenuItem<String>(
+                  value: doc.id,
+                  child: Text(name),
+                  onTap: () {
+                    selectedDriverName = name;
+                  },
+                );
+              }).toList(),
+              onChanged: (value) {
+                selectedDriverId = value;
+              },
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          ElevatedButton(
+            child: const Text("Reassign"),
+            onPressed: () async {
+              if (selectedDriverId == null) return;
+
+              // Update trip with new driver
+              await FirebaseFirestore.instance
+                  .collection('trips')
+                  .doc(tripId)
+                  .update({
+                "driverId": selectedDriverId,
+                "driverName": selectedDriverName ?? "Unassigned",
+                "status": "Scheduled", // reset if needed
+              });
+
+              // Send notification to the new driver
+              await FirebaseFirestore.instance
+                  .collection('user_notifications')
+                  .doc(selectedDriverId)
+                  .collection('items')
+                  .add({
+                "status": "new",
+                "type": "trip_assignment",
+                "createdAt": FieldValue.serverTimestamp(),
+                "data": {
+                  "tripId": tripId,
+                  "start": tripData['start'],
+                  "end": tripData['end'],
+                }
+              });
+
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Trip reassigned successfully")),
+              );
+            },
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   Future<void> _showAssignmentDialog(
     String notifId,
@@ -302,6 +396,16 @@ class _DriverTripsPageState extends State<DriverTripsPage> {
                                       },
                                     ),
                                   ],
+                                  if (data['status'] == "Scheduled" || data['status'] == "Ongoing") ...[
+  _customButton(
+    label: "Reassign",
+    color: Colors.orange,
+    onTap: () {
+      _showReassignDialog(context, trip.id, data);
+    },
+  ),
+],
+
                                 ],
                               ),
 

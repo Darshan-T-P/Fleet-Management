@@ -31,7 +31,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   final List<Widget> _pages = const [
     DashboardPage(),
-    VehiclesPage(),
+    VehicleListPage(),
     TripsPage(),
     AnalyticsPage(),
   ];
